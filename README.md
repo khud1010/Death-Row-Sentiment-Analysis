@@ -1,2 +1,2 @@
-# Death-Row-Sentiment-Analysis
-Project for Northwestern's MSDS 453-NLP course
+# The Meaning of Last Words: Death Row Inmates in Texas
+For Northwestern's MSDS program (453 - NLP)

@@ -1,0 +1,161 @@
+import re,string
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer
+from sklearn.preprocessing import LabelEncoder, OneHotEncoder
+import matplotlib.pyplot as plt
+import pandas as pd
+###############################################################################
+### Function to process documents
+###############################################################################
+def clean_doc(doc): 
+    #split document into individual words
+    tokens=doc.split()
+    re_punc = re.compile('[%s]' % re.escape(string.punctuation))
+    # remove punctuation from each word
+    tokens = [re_punc.sub('', w) for w in tokens]
+    # remove remaining tokens that are not alphabetic
+    tokens = [word for word in tokens if word.isalpha()]
+    # filter out short tokens
+    tokens = [word for word in tokens if len(word) > 3]
+    #lowercase all words
+    tokens = [word.lower() for word in tokens]
+    # filter out stop words
+    stop_words = set(stopwords.words('english'))
+    tokens = [w for w in tokens if not w in stop_words]         
+    # word stemming    
+    ps=PorterStemmer()
+    tokens=[ps.stem(word) for word in tokens]
+    return tokens
+
+###############################################################################
+#   Functions to label encoding
+###############################################################################
+def One_Hot(variable):
+    LE=LabelEncoder()
+    LE.fit(variable)
+    Label1=LE.transform(variable)
+    OHE=OneHotEncoder()
+    labels=OHE.fit_transform(Label1.reshape(-1,1)).toarray()
+    return labels, LE, OHE
+
+def count_ages_in_bins(df):
+    bins = [20, 30, 40, 50, 60, 80]  # Define the bin edges
+    labels = ['20-29', '30-39', '40-49', '50-59', '60+']   # Define the labels for the bins
+
+    # Bin the 'Age' column using pd.cut and the defined bins and labels
+    df['AgeGroup'] = pd.cut(df['Age'], bins=bins, labels=labels, right=False)
+
+    # Count the occurrences of each bin
+    counts = df['AgeGroup'].value_counts(sort=False)
+
+    # Return the counts as a list
+    return counts
+
+
+###############################################################################
+### Processing text into lists
+###############################################################################
+#%%
+#read in class corpus csv into python
+data=pd.read_csv('./inmate_last_words.csv')
+
+data["full_name"] = data["First Name"] + " " + data["Last Name"]
+
+data['Race'] = data['Race'].str.strip()
+#%%
+#create empty list to store text documents titles
+titles=[]
+
+#for loop which appends the DSI title to the titles list
+for i in range(0,len(data)):
+    temp_text=data['full_name'].iloc[i]
+    titles.append(temp_text)
+#%%
+#create empty list to store text documents
+text_body=[]
+
+#for loop which appends the text to the text_body list
+for i in range(0,len(data)):
+    temp_text=data['last_statement'].iloc[i]
+    text_body.append(temp_text)
+
+#Note: the text_body is the unprocessed list of documents read directly form 
+#the csv.
+#%% 
+#empty list to store processed documents
+processed_text=[]
+#for loop to process the text to the processed_text list
+for i in text_body:
+    text=clean_doc(i)
+    processed_text.append(text)
+
+#Note: the processed_text is the PROCESSED list of documents read directly form 
+#the csv.  Note the list of words is separated by commas.
+
+#%%
+#stitch back together individual words to reform body of text
+final_processed_text=[]
+bad_indicies = []
+for idx, row in enumerate(processed_text):
+    if row:
+        temp_DSI=row[0]
+        for k in range(1,len(row)):
+            temp_DSI=temp_DSI+' '+row[k]
+        final_processed_text.append(temp_DSI)
+    else:
+        bad_indicies.append(idx)
+
+#%%
+# Reversing Indices List
+remove_idx_list = sorted(bad_indicies, reverse=True)
+
+# Traversing in the indices list
+for idx in remove_idx_list:
+    titles.pop(idx)
+    processed_text.pop(idx)
+    data = data.drop(idx)
+
+data = data.reset_index()
+# printing the list after deleting items at the given indices
+print("Num after deletion:\n", len(titles))
+# %%
+age_stats = data['Age'].describe()
+print(age_stats)
+
+mean_age = data['Age'].mean()
+median_age = data['Age'].median()
+std_age = data['Age'].std()
+age_range = data['Age'].max() - data['Age'].min()
+
+#%%
+race_distribution = data['Race'].value_counts()
+print(race_distribution)
+
+#%%
+average_age_by_race = data.groupby('Race')['Age'].mean()
+print(average_age_by_race)
+
+#%%
+import matplotlib.pyplot as plt
+
+age_counts = count_ages_in_bins(data)
+print(age_counts)
+
+age_counts.plot(kind='bar')
+plt.xlabel('Age Groups')
+plt.ylabel('Counts')
+plt.title('Counts of Ages in Each Age Group')
+plt.show()
+race_distribution.plot(kind='bar')
+plt.title('Race Distribution')
+plt.xlabel('Race')
+plt.ylabel('Count')
+plt.show()
+data.boxplot(column='Age', by='Race')
+plt.title('Age Distribution by Race')
+plt.xlabel('Race')
+plt.ylabel('Age')
+plt.suptitle('')  # That removes the automatic suptitle generated by pandas
+plt.show()
+
+# %%
